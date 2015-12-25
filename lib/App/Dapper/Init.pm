@@ -35,17 +35,147 @@ my $libs_name = "functions.pl";
 my $libs_content = <<'LIBS_CONTENT';
 print "IMPORTING LIBS functions.pl" . "\n";
 
-$stash->set('save', sub { my($key, $value) = @_;
+sub save { my($key, $value) = @_;
 	$stash->set($key, $value);
-});
+}
 
-$stash->set('load', sub { my($key) = @_;
+sub load { my($key) = @_;
 	return $stash->get($key);
-});
+}
+
+sub _varType { my($var) = @_;
+  my $result = "";
+  if(not ref($var)) {
+    $result = "string";
+  }
+  elsif(ref($var) eq "HASH") {
+    $result = "HASH";
+  }
+  elsif(ref($var) eq "ARRAY") {
+    $result = "ARRAY";
+  }
+  elsif(ref($var) eq "SCALAR") {
+    $result = "SCALAR";
+  }
+  elsif(ref($var) eq "CODE") {
+    $result = "CODE";
+  }
+  elsif(ref($var) eq "REF") {
+    $result = "REF";
+  }
+  elsif(ref($var) eq "VSTRING") {
+    $result = "VSTRING";
+  }
+  elsif(ref($var) eq "Regexp") {
+    $result = "Regexp";
+  }
+  elsif(ref($var) eq "GLOB") {
+    $result = "GLOB";
+  }
+  elsif(ref($var) eq "LVALUE") {
+    $result = "LVALUE";
+  }
+  elsif(ref($var) eq "FORMAT") {
+    $result = "FORMAT";
+  }
+  elsif(ref($var) eq "IO") {
+    $result = "IO";
+  }
+  return $result;
+}
+
+$stash->set('save', \&save);
+$stash->set('load', \&load);
+$stash->set('_varType', \&_varType);
 
 #Add new custom functions here
-
 LIBS_CONTENT
+
+
+
+
+my $libs2_name = "pages.pl";
+my $libs2_content = <<'LIBS2_CONTENT';
+use strict;
+use warnings;
+use diagnostics;
+
+use Data::Dumper;
+
+print "IMPORTING LIBS pages.pl" . "\n";
+
+sub getAllPages {
+  my @result = ();
+  @result = $stash->get('site')->{'pages'};
+  @result = @{$result[0]};
+  return @result;
+}
+
+sub getPathPage { my($page) = @_;
+  my $result = "";
+  $result = $page->{'dirname'};
+  my $idx = index($result, '/');
+  $result = substr($result, $idx);
+  my $length = length($result);
+  my $lastChar = substr($result, $length - 1);
+  if ($lastChar eq '/' && $length > 1) {
+    $result = substr($result, 0, $length - 1);
+  }
+  return $result;
+}
+
+sub loadInnerPages { my($parent) = @_;
+  my @result = ();
+  my $result2 = "";
+  my $parentPath = getPathPage($parent);
+  my @pages = getAllPages();
+  my $pagesLength = @pages;
+  $result2 = $pagesLength;
+  for (my $i = 0; $i < $pagesLength; $i++) {
+    my $cPage = $pages[$i];
+    my $cPagePath = getPathPage($cPage);
+    if (index($cPagePath, $parentPath) == 0 && ($parentPath ne $cPagePath)) {
+      push(@result, $cPage);
+      $result2 = $result2.",".$cPagePath;
+    }
+  }
+  return \@result;
+}
+
+=pod
+print Dumper($variable);
+=cut
+
+sub getRootPage {
+  my %result = ();
+  my @pages = getAllPages();
+  my $pagesLength = @pages;
+  for (my $i = 0; $i < $pagesLength; $i++) {
+    my $cPage = $pages[$i];
+    my $cPagePath = getPathPage($cPage);
+    if ($cPagePath eq "/") {
+
+    for my $hKey ( keys %$cPage ) {
+        my $hValue = $cPage->{$hKey};
+     	$result{$hKey} = $hValue;
+    }
+      last;
+    }
+  }
+  return \%result;
+}
+
+$stash->set('getAllPages', \&getAllPages);
+$stash->set('getPathPage', \&getPathPage);
+$stash->set('loadInnerPages', \&loadInnerPages);
+$stash->set('getRootPage', \&getRootPage);
+
+#Add new custom functions here
+LIBS2_CONTENT
+
+
+
+
 
 my $templates_index_name = "index.html";
 my $templates_index_content = <<'TEMPLATES_INDEX_CONTENT';
@@ -113,6 +243,7 @@ sub init {
     
     App::Dapper::Utils::create_dir('_libs');
     App::Dapper::Utils::create_file("_libs/$libs_name", $libs_content);
+    App::Dapper::Utils::create_file("_libs/$libs2_name", $libs2_content);
 }
 
 1;

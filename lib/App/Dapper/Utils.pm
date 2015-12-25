@@ -170,4 +170,135 @@ sub create_dir {
         or die "Could not create directory '$dirname' $!";
 }
 
+=head2 filter_src_ext
+
+Takes a string (filename) and returns the file base name.
+
+=cut
+
+sub filter_src_ext { my ($filename) = @_;
+	my $result = "";
+
+	my $fname = filter_src_name($filename);
+    my $idx = rindex($fname, '.');
+    if ($idx >= 0) {
+      $result = substr($fname, $idx);
+    }
+   
+    return $result;
+}
+
+=head2 filter_src_name
+
+Takes a string (filename) and returns the file name.
+
+=cut
+
+sub filter_src_name { my ($filename) = @_;
+	my $result = "";
+    $result = canonpath $filename;
+
+    my $idx = rindex($result, '/');
+    $idx = ($idx > -1 ? $idx + 1 : 0);
+    $result = substr($result, $idx);
+   
+    return $result;
+}
+
+=head2 filter_src_basename
+
+Takes a string (filename) and returns the file base name.
+
+=cut
+
+sub filter_src_basename { my ($filename) = @_;
+	my $result = "";
+    $result = canonpath $filename;
+
+    my $firstIdx = rindex($result, '/');
+    $firstIdx = ($firstIdx > -1 ? $firstIdx + 1 : 0);
+    my $lastIdx = rindex($result, '.');
+    $lastIdx = ($lastIdx > -1 ? $lastIdx : length($result));
+    $result = substr($filename, $firstIdx, $lastIdx - $firstIdx);
+
+    return $result;
+}
+
+=head2 filter_src_path
+
+Takes a string (filename) and returns the file name.
+
+=cut
+
+sub filter_src_path { my ($filename) = @_;
+	my $result = "";
+    my $path = canonpath $filename;
+    
+    my $idx = index($path, '/');
+	my $lastIdx = rindex($path, '/');
+	$lastIdx = ($lastIdx > $idx ? $lastIdx : $idx) + 1;
+	
+	$result = substr($path, $idx, $lastIdx - $idx);
+
+    return $result;
+}
+
+=head2 filter_src_fullpath
+
+Takes a string (filename) and returns the file name.
+
+=cut
+
+sub filter_src_fullpath { my ($filename) = @_;
+	my $result = "";
+    $result = filter_src_path($filename).filter_src_name($filename);
+    return $result;
+}
+
+=head2 filter_src_fullbasepath
+
+Takes a string (filename) and returns the file name.
+
+=cut
+
+sub filter_src_fullbasepath { my ($filename) = @_;
+	my $result = "";
+    $result = filter_src_path($filename).filter_src_basename($filename);
+    return $result;
+}
+
+=head2 filter_src_pathlevel
+
+Takes a string (filename) and returns the file name.
+
+=cut
+
+sub filter_src_pathlevel { my ($filename) = @_;
+	my $result = 0;
+    my $path = filter_src_path($filename);
+    
+	my $idx = -1;
+	do {
+	  $idx = index($path, '/', $idx + 1);
+	  $result += ($idx > -1 ? 1 : 0);
+    } while ($idx > -1);
+    $result -= 1;
+
+    return $result;
+}
+
+=head2 filter_url2
+
+Takes a string (filename) and returns the file name.
+
+=cut
+
+sub filter_url2 { my ($filename) = @_;
+	my $result = "";
+    my $path = canonpath $filename;
+	my $idx = index($path, '/');
+    $result = substr($path, $idx + 1);
+    return $result;
+}
+
 1;

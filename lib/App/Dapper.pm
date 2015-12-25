@@ -15,6 +15,9 @@ use warnings FATAL => 'all';
 use vars '$VERSION';
 
 use File::Slurp;
+use File::stat;
+use File::Copy qw(move);
+use Time::Piece;
 use Template::Stash;
 
 use Exporter qw(import);
@@ -496,7 +499,7 @@ sub serve {
 
     $port = $DEFAULT_PORT unless $port;
 
-    my $s = HTTP::Server::Brick->new(port=>$port);
+    my $s = HTTP::Server::Brick->new(port=>$port,fork=>1);
     $s->add_type('text/html' => qw(^[^\.]+$));
     $s->mount("/"=>{ path => $self->{output} });
 
@@ -580,9 +583,22 @@ sub walk {
 
     # cycle through each element in the current directory
     while(defined($directory_element = $source_handle->read)) {
-
+print "INSPECT $source_dir/$directory_element\n";
       # print "directory element:$source/$directory_element\n";
       if(-d "$source_dir/$directory_element" and $directory_element ne "." and $directory_element ne "..") {
+      	if (not -e "$source_dir/$directory_element/index.md") {
+ 			print "NOT File Exists! "."$source_dir/$directory_element/index.md\n";
+ 			
+			my $fileIndex = "$source_dir/$directory_element/index.md";
+			open(my $fh, '>', $fileIndex) or die "Could not open file '$fileIndex' $!";
+			print $fh "---\n";
+			print $fh "layout: main4\n";
+			print $fh "title: ".ucfirst($directory_element)."\n";
+			print $fh "---\n";
+			print $fh "\n";
+			print $fh "[% page.title %]\n";
+			close $fh;
+ 		}
         $self->walk("$source_dir/$directory_element", "$output_dir/$directory_element");
       }
       elsif(-f "$source_dir/$directory_element" and $directory_element ne "." and $directory_element ne "..") {
@@ -626,6 +642,35 @@ sub build_inventory {
 
     for my $key (keys %{$frontmatter}) {
         $page{$key} = $frontmatter->{$key};
+    }
+
+    my $sb = stat($source_file_name);
+    my $mtime = scalar localtime $sb->mtime;
+    #printf("File is %s, size is %s, perm %04o, mtime %s\n", $source_file_name, $sb->size, $sb->mode & 07777, $mtime);
+
+    if (not $page{crtime}) {
+	    #Tue Dec 22 13:18:20 2015
+	    my $timeMTime = Time::Piece->strptime($mtime, "%a %b %d %H:%M:%S %Y");
+	    my $textMTime = $timeMTime->strftime("%Y-%m-%d %H:%M:%S");
+	    $page{crtime} = $textMTime;
+	    
+		open my $in,  '<',  $source_file_name      or die "Can't read old file: $!";
+		open my $out, '>', "$source_file_name.new" or die "Can't write new file: $!";
+
+        my $idxEndProperties = 0;
+		#print $out "# Add this line to the top\n"; # <--- HERE'S THE MAGIC
+		while( <$in> ) {
+			$idxEndProperties += ("$_" eq "---\n" ? 1 : 0);
+			if ($idxEndProperties == 2) {
+				print $out "crtime: $textMTime\n"; # <--- HERE'S THE MAGIC
+		        $idxEndProperties += 1;
+			}
+#			print "HOLA>>>>>>>>>>>> $_";
+			print $out $_;
+		}
+		close $out;
+		
+		move("$source_file_name.new", $source_file_name);
     }
 
     $page{slug} = App::Dapper::Utils::slugify($page{title});
@@ -681,6 +726,15 @@ sub build_inventory {
 
     $page{filename} = App::Dapper::Utils::filter_stem("$destination_file_name") . $page{extension};
     
+    $page{'src_ext'} = App::Dapper::Utils::filter_src_ext($source_file_name);
+    $page{'src_name'} = App::Dapper::Utils::filter_src_name($source_file_name);
+    $page{'src_basename'} = App::Dapper::Utils::filter_src_basename($source_file_name);
+    $page{'src_path'} = App::Dapper::Utils::filter_src_path($source_file_name);
+    $page{'src_fullpath'} = App::Dapper::Utils::filter_src_fullpath($source_file_name);
+    $page{'src_fullbasepath'} = App::Dapper::Utils::filter_src_fullbasepath($source_file_name);
+    $page{'src_pathlevel'} = App::Dapper::Utils::filter_src_pathlevel($source_file_name);
+    $page{'url2'} = App::Dapper::Utils::filter_url2($page{'filename'});
+
     if(defined $page{categories}) {
         my $filename = $self->{site}->{output} . $page{url};
         $filename =~ s/\/$/\/index.html/; 
@@ -709,6 +763,10 @@ sub build_inventory {
     }
 
     push @{$self->{site}->{pages}}, \%page;
+    
+    if ($page{src_fullbasepath} eq "/index") {
+    	$self->{site}->{rootPage} = \%page;
+    }
 }
 
 # sub copy(sourcedir, outputdir) - Copies files and directories from <sourcedir> to <outputdir> as long as they do not made what is contained in $self->{site}->{ignore}.
